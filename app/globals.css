@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #1E3A8A;
+  --color-primary-container: #2563EB;
+  --color-on-primary: #ffffff;
+  --color-secondary: #2563EB;
+  --color-secondary-container: #DBEAFE;
+  --color-on-secondary-container: #1E3A8A;
+  --color-surface: #F8FAFC;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #F1F5F9;
+  --color-surface-container: #E2E8F0;
+  --color-surface-container-high: #CBD5E1;
+  --color-on-surface: #0F172A;
+  --color-on-surface-variant: #475569;
+  --color-outline-variant: #CBD5E1;
+
+  --font-headline: var(--font-inter), sans-serif;
+  --font-body: var(--font-inter), sans-serif;
+  --font-serif: var(--font-serif), serif;
+}
+
+@layer utilities {
+  .glass-panel {
+    background-color: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(20px);
+  }
+  .btn-gradient {
+    background: var(--color-primary);
+  }
+  .ghost-border {
+    border: 1px solid var(--color-surface-container);
+    border-radius: 0.5rem;
+    padding: 0.5rem 1rem;
+  }
+  .ghost-border:focus-within {
+    border-color: var(--color-primary-container);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+  }
+  .editorial-shadow {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background-color: white !important;
+  }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}
