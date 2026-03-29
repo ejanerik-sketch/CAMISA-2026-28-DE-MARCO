@@ -33,7 +33,7 @@ export default function Sucesso() {
     const msg = `> Camisas Festa de Nossa Senhora de Fátima 2026
   
 Pedido: ${order.id}
-Nome: ${order.nome}
+Nome: ${order.name}
 WhatsApp: ${order.whatsapp}
 Endereço: ${order.endereco}
 Grupo: ${order.grupo || 'Nenhum'}
@@ -171,7 +171,7 @@ Deus abençoe!`;
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-slate-600 font-medium">Comprador:</span>
-                <span className="text-[#0F172A]">{order.nome}</span>
+                <span className="text-[#0F172A]">{order.name}</span>
               </div>
               {order.grupo && (
                 <div className="flex justify-between items-center">

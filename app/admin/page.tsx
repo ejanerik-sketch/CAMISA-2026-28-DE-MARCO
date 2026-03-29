@@ -20,19 +20,19 @@ const data = [
 
 const initialMockOrders = [
   { 
-    id: 'PED26-0001', name: 'João da Silva', items: 3, total: 120, status: 'Pago', date: '2026-03-01', createdBy: 'Direto do site',
+    id: 'PED26-0001', name: 'João da Silva', items: 3, total: 120, status: 'Pago', date: '2026-03-01', created_by: 'Direto do site',
     cart: { tradicional: { 'M TRAD': 2 }, babylook: { 'P BABY': 1 } }
   },
   { 
-    id: 'PED26-0002', name: 'Maria Oliveira', items: 1, total: 40, status: 'Pendente', date: '2026-03-01', createdBy: 'Admin (João)',
+    id: 'PED26-0002', name: 'Maria Oliveira', items: 1, total: 40, status: 'Pendente', date: '2026-03-01', created_by: 'Admin (João)',
     cart: { tradicional: { 'G TRAD': 1 } }
   },
   { 
-    id: 'PED26-0003', name: 'Carlos Santos', items: 5, total: 200, status: 'Produção', date: '2026-03-02', createdBy: 'Direto do site',
+    id: 'PED26-0003', name: 'Carlos Santos', items: 5, total: 200, status: 'Produção', date: '2026-03-02', created_by: 'Direto do site',
     cart: { tradicional: { 'P TRAD': 2, 'M TRAD': 2 }, infantil: { '10 ANOS': 1 } }
   },
   { 
-    id: 'PED26-0004', name: 'Ana Costa', items: 2, total: 80, status: 'Entregue', date: '2026-03-02', createdBy: 'Secretaria Maria',
+    id: 'PED26-0004', name: 'Ana Costa', items: 2, total: 80, status: 'Entregue', date: '2026-03-02', created_by: 'Secretaria Maria',
     cart: { babylook: { 'M BABY': 2 } }
   },
 ];
@@ -137,7 +137,7 @@ export default function AdminDashboard() {
           order.id,
           `"${order.name}"`,
           new Date(order.date).toLocaleDateString('pt-BR'),
-          `"${order.createdBy}"`,
+          `"${order.created_by}"`,
           `"${itemsList}"`,
           order.total.toFixed(2),
           order.status
@@ -160,7 +160,7 @@ export default function AdminDashboard() {
     if (!selectedOrder || !newStatus || !currentUser) return;
     
     // Visualizador can only edit their own orders
-    if (currentUser.role === 'Visualizador' && selectedOrder.createdBy !== currentUser.name) {
+    if (currentUser.role === 'Visualizador' && selectedOrder.created_by !== currentUser.name) {
       alert('Você só pode alterar o status dos pedidos que você mesmo gerou.');
       return;
     }
@@ -188,7 +188,7 @@ export default function AdminDashboard() {
   const handleDeleteOrder = async () => {
     if (!selectedOrder || !currentUser) return;
 
-    if (currentUser.role === 'Visualizador' && selectedOrder.createdBy !== currentUser.name) {
+    if (currentUser.role === 'Visualizador' && selectedOrder.created_by !== currentUser.name) {
       alert('Você só pode apagar os pedidos que você mesmo gerou.');
       return;
     }
@@ -407,7 +407,7 @@ export default function AdminDashboard() {
                     <td className="p-4 text-sm text-slate-500">{new Date(order.date).toLocaleDateString('pt-BR')}</td>
                     <td className="p-4 text-sm text-slate-500">
                       <span className="inline-flex items-center px-2 py-1 rounded-md bg-slate-100 text-slate-600 text-xs font-medium">
-                        {order.createdBy}
+                        {order.created_by}
                       </span>
                     </td>
                     <td className="p-4 text-sm text-slate-500">{order.items} peças</td>
@@ -498,7 +498,7 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-2">Origem</p>
-                  <p className="font-bold text-slate-800">{selectedOrder.createdBy}</p>
+                  <p className="font-bold text-slate-800">{selectedOrder.created_by}</p>
                 </div>
                 <div>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-2">Status</p>
@@ -535,7 +535,7 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="px-8 py-6 bg-slate-50 flex justify-between gap-3">
-              {(currentUser?.role === 'Administrador' || currentUser?.role === 'Editor' || (currentUser?.role === 'Visualizador' && selectedOrder.createdBy === currentUser?.name)) ? (
+              {(currentUser?.role === 'Administrador' || currentUser?.role === 'Editor' || (currentUser?.role === 'Visualizador' && selectedOrder.created_by === currentUser?.name)) ? (
                 <button 
                   onClick={handleDeleteOrder}
                   className={`px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2 active:scale-95 ${confirmDelete ? 'bg-red-600 text-white hover:bg-red-700' : 'text-red-600 hover:bg-red-50'}`}
@@ -554,7 +554,7 @@ export default function AdminDashboard() {
                 >
                   Fechar
                 </button>
-                {(currentUser?.role === 'Administrador' || currentUser?.role === 'Editor' || (currentUser?.role === 'Visualizador' && selectedOrder.createdBy === currentUser?.name)) && (
+                {(currentUser?.role === 'Administrador' || currentUser?.role === 'Editor' || (currentUser?.role === 'Visualizador' && selectedOrder.created_by === currentUser?.name)) && (
                   <button 
                     onClick={handleUpdateStatus}
                     disabled={isUpdating}

@@ -153,14 +153,18 @@ export default function NovoPedido() {
     const currentUser = JSON.parse(sessionStorage.getItem('logged_in_user') || '{"name": "Admin"}');
 
     const orderData = {
-      ...formData,
-      name: formData.nome,
-      items: getTotalItems(),
-      cart,
-      total: getTotalPrice(),
       id: `PED26-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
-      date: new Date().toISOString(),
-      createdBy: currentUser.name
+      name: formData.nome,
+      whatsapp: formData.whatsapp,
+      endereco: formData.endereco,
+      grupo: formData.grupo,
+      pagamento: formData.pagamento,
+      status: formData.status,
+      items: getTotalItems(),
+      total: getTotalPrice(),
+      cart,
+      created_by: currentUser.name,
+      date: new Date().toISOString()
     };
     
     const { error } = await supabase

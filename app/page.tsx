@@ -163,16 +163,18 @@ export default function Home() {
     setIsSubmitting(true);
 
     const orderData = {
-      ...formData,
-      name: formData.nome,
-      grupo: formData.grupo,
-      items: totalItems,
-      cart,
-      total: totalPrice,
-      status: 'Pendente',
       id: `PED26-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
-      date: new Date().toISOString(),
-      createdBy: 'Direto do site'
+      name: formData.nome,
+      whatsapp: formData.whatsapp,
+      endereco: formData.endereco,
+      grupo: formData.grupo,
+      pagamento: formData.pagamento,
+      status: 'Pendente',
+      items: totalItems,
+      total: totalPrice,
+      cart,
+      created_by: 'Direto do site',
+      date: new Date().toISOString()
     };
 
     const { error } = await supabase
