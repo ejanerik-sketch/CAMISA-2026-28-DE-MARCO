@@ -9,8 +9,10 @@ export default function UserManagement() {
   const router = useRouter();
   const [users, setUsers] = useState<any[]>([]);
   const [newUser, setNewUser] = useState({ name: '', email: '', role: 'Administrador' });
+  const [editingUser, setEditingUser] = useState<any>(null);
   const [isMounted, setIsMounted] = useState(false);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   const fetchUsers = async () => {
@@ -49,22 +51,59 @@ export default function UserManagement() {
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUser.name || !newUser.email) return;
+    setIsSubmitting(true);
 
-    const { error } = await supabase
-      .from('users')
-      .insert([{
-        ...newUser,
-        password: 'changeme', // Default password
-        status: 'Ativo'
-      }]);
+    if (editingUser) {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role
+        })
+        .eq('id', editingUser.id);
 
-    if (error) {
-      console.error('Error adding user:', error);
-      alert('Erro ao adicionar usuário. Verifique se o e-mail já existe.');
-      return;
+      if (error) {
+        console.error('Error updating user:', error);
+        alert('Erro ao atualizar usuário.');
+        setIsSubmitting(false);
+        return;
+      }
+    } else {
+      const { error } = await supabase
+        .from('users')
+        .insert([{
+          ...newUser,
+          password: 'changeme', // Default password
+          status: 'Ativo'
+        }]);
+
+      if (error) {
+        console.error('Error adding user:', error);
+        alert('Erro ao adicionar usuário. Verifique se o e-mail já existe.');
+        setIsSubmitting(false);
+        return;
+      }
     }
 
     fetchUsers();
+    setNewUser({ name: '', email: '', role: 'Administrador' });
+    setEditingUser(null);
+    setIsSubmitting(false);
+  };
+
+  const startEdit = (user: any) => {
+    setEditingUser(user);
+    setNewUser({
+      name: user.name,
+      email: user.email,
+      role: user.role
+    });
+    focusNewUser();
+  };
+
+  const cancelEdit = () => {
+    setEditingUser(null);
     setNewUser({ name: '', email: '', role: 'Administrador' });
   };
 
@@ -115,7 +154,9 @@ export default function UserManagement() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* New User Form (Sidebar) */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 h-fit">
-          <h3 className="text-xl text-[#0F172A] font-bold mb-6">Adicionar Membro</h3>
+          <h3 className="text-xl text-[#0F172A] font-bold mb-6">
+            {editingUser ? 'Editar Membro' : 'Adicionar Membro'}
+          </h3>
           <form onSubmit={handleAddUser} className="space-y-4">
             <div className="space-y-1">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Nome Completo</label>
@@ -161,9 +202,24 @@ export default function UserManagement() {
                 </select>
               </div>
             </div>
-            <button type="submit" className="w-full py-3 mt-4 bg-[#1E3A8A] text-white font-bold rounded-xl hover:bg-blue-900 transition-colors active:scale-95">
-              Salvar Usuário
-            </button>
+            <div className="flex flex-col gap-2">
+              <button 
+                type="submit" 
+                disabled={isSubmitting}
+                className="w-full py-3 mt-2 bg-[#1E3A8A] text-white font-bold rounded-xl hover:bg-blue-900 transition-colors active:scale-95 disabled:opacity-50"
+              >
+                {isSubmitting ? 'Salvando...' : (editingUser ? 'Atualizar Usuário' : 'Salvar Usuário')}
+              </button>
+              {editingUser && (
+                <button 
+                  type="button" 
+                  onClick={cancelEdit}
+                  className="w-full py-2 text-slate-500 font-bold hover:text-slate-700 transition-colors"
+                >
+                  Cancelar Edição
+                </button>
+              )}
+            </div>
           </form>
         </div>
 
@@ -212,7 +268,10 @@ export default function UserManagement() {
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button className="p-2 text-slate-400 hover:text-[#1E3A8A] hover:bg-slate-100 rounded-lg transition-colors active:scale-95">
+                        <button 
+                          onClick={() => startEdit(user)}
+                          className={`p-2 rounded-lg transition-colors active:scale-95 ${editingUser?.id === user.id ? 'bg-blue-100 text-[#1E3A8A]' : 'text-slate-400 hover:text-[#1E3A8A] hover:bg-slate-100'}`}
+                        >
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button 

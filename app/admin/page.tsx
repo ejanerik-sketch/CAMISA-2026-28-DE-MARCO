@@ -4,37 +4,56 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Search, Filter, Download, CheckCircle, Clock, AlertCircle, Users, PlusCircle, LogOut, Trash2 } from 'lucide-react';
+import { Search, Filter, Download, CheckCircle, Clock, AlertCircle, Users, PlusCircle, LogOut, Trash2, X, Edit2, Minus, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
-// Mock Data
-const data = [
-  { name: '01/03', vendas: 4000 },
-  { name: '02/03', vendas: 3000 },
-  { name: '03/03', vendas: 2000 },
-  { name: '04/03', vendas: 2780 },
-  { name: '05/03', vendas: 1890 },
-  { name: '06/03', vendas: 2390 },
-  { name: '07/03', vendas: 3490 },
-];
-
-const initialMockOrders = [
+// Categories for editing
+const CATEGORIES = [
   { 
-    id: 'PED26-0001', name: 'João da Silva', items: 3, total: 120, status: 'Pago', date: '2026-03-01', created_by: 'Direto do site',
-    cart: { tradicional: { 'M TRAD': 2 }, babylook: { 'P BABY': 1 } }
+    id: 'babylook', 
+    name: 'Baby Look (R$ 40,00)', 
+    sizes: [
+      { name: 'PP BABY', price: 40 },
+      { name: 'P BABY', price: 40 },
+      { name: 'M BABY', price: 40 },
+      { name: 'G BABY', price: 40 },
+      { name: 'GG BABY', price: 40 },
+    ] 
   },
   { 
-    id: 'PED26-0002', name: 'Maria Oliveira', items: 1, total: 40, status: 'Pendente', date: '2026-03-01', created_by: 'Admin (João)',
-    cart: { tradicional: { 'G TRAD': 1 } }
+    id: 'tradicional', 
+    name: 'Tradicional (R$ 40,00)', 
+    sizes: [
+      { name: 'PP TRAD', price: 40 },
+      { name: 'P TRAD', price: 40 },
+      { name: 'M TRAD', price: 40 },
+      { name: 'G TRAD', price: 40 },
+      { name: 'GG TRAD', price: 40 },
+    ] 
   },
   { 
-    id: 'PED26-0003', name: 'Carlos Santos', items: 5, total: 200, status: 'Produção', date: '2026-03-02', created_by: 'Direto do site',
-    cart: { tradicional: { 'P TRAD': 2, 'M TRAD': 2 }, infantil: { '10 ANOS': 1 } }
+    id: 'infantil', 
+    name: 'Infantil (R$ 35,00)', 
+    sizes: [
+      { name: '2 ANOS', price: 35 },
+      { name: '4 ANOS', price: 35 },
+      { name: '6 ANOS', price: 35 },
+      { name: '8 ANOS', price: 35 },
+      { name: '10 ANOS', price: 35 },
+      { name: '12 ANOS', price: 35 },
+      { name: '14 ANOS', price: 35 },
+      { name: '16 ANOS', price: 35 },
+    ] 
   },
   { 
-    id: 'PED26-0004', name: 'Ana Costa', items: 2, total: 80, status: 'Entregue', date: '2026-03-02', created_by: 'Secretaria Maria',
-    cart: { babylook: { 'M BABY': 2 } }
-  },
+    id: 'especial', 
+    name: 'Especial (R$ 45,00)', 
+    sizes: [
+      { name: 'G1', price: 45 },
+      { name: 'G2', price: 45 },
+      { name: 'G3', price: 45 },
+    ] 
+  }
 ];
 
 export default function AdminDashboard() {
@@ -49,6 +68,8 @@ export default function AdminDashboard() {
   const [newStatus, setNewStatus] = useState<string>('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isEditingItems, setIsEditingItems] = useState(false);
+  const [editedCart, setEditedCart] = useState<any>({});
 
   const [isMounted, setIsMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -103,6 +124,22 @@ export default function AdminDashboard() {
       return matchesStatus && matchesSearch && matchesDate;
     });
   }, [orders, filterStatus, searchQuery, startDate, endDate]);
+
+  const chartData = useMemo(() => {
+    const sales: Record<string, number> = {};
+    
+    filteredOrders.forEach(order => {
+      const day = new Date(order.date).toISOString().split('T')[0];
+      sales[day] = (sales[day] || 0) + order.total;
+    });
+
+    return Object.entries(sales)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([day, total]) => ({
+        name: day.split('-').slice(1).reverse().join('/'), // YYYY-MM-DD -> DD/MM
+        vendas: total
+      }));
+  }, [filteredOrders]);
 
   const productionSummary = useMemo(() => {
     const summary: Record<string, number> = {};
@@ -167,22 +204,66 @@ export default function AdminDashboard() {
 
     setIsUpdating(true);
     
+    let updateData: any = { status: newStatus };
+    
+    if (isEditingItems) {
+      let totalItems = 0;
+      let totalPrice = 0;
+      
+      Object.entries(editedCart).forEach(([catId, sizes]: [string, any]) => {
+        const category = CATEGORIES.find(c => c.id === catId);
+        Object.entries(sizes).forEach(([sizeName, qty]: [string, any]) => {
+          if (qty > 0) {
+            totalItems += qty;
+            const sizeOption = category?.sizes.find(s => s.name === sizeName);
+            if (sizeOption) {
+              totalPrice += qty * sizeOption.price;
+            }
+          }
+        });
+      });
+      
+      updateData = {
+        ...updateData,
+        cart: editedCart,
+        items: totalItems,
+        total: totalPrice
+      };
+    }
+    
     const { error } = await supabase
       .from('orders')
-      .update({ status: newStatus })
+      .update(updateData)
       .eq('id', selectedOrder.id);
 
     if (error) {
-      console.error('Error updating order status:', error);
-      alert('Erro ao atualizar status.');
+      console.error('Error updating order:', error);
+      alert('Erro ao atualizar pedido.');
       setIsUpdating(false);
       return;
     }
 
     fetchOrders();
-    setSelectedOrder({ ...selectedOrder, status: newStatus });
+    setSelectedOrder({ ...selectedOrder, ...updateData });
     setIsUpdating(false);
+    setIsEditingItems(false);
     alert('Alterações salvas com sucesso!');
+  };
+
+  const handleEditCart = (catId: string, sizeName: string, delta: number) => {
+    setEditedCart((prev: any) => {
+      const currentCat = prev[catId] || {};
+      const currentQty = currentCat[sizeName] || 0;
+      const newQty = Math.max(0, currentQty + delta);
+      
+      return {
+        ...prev,
+        [catId]: {
+          ...currentCat,
+          [sizeName]: newQty
+        }
+      };
+    });
   };
 
   const handleDeleteOrder = async () => {
@@ -297,7 +378,7 @@ export default function AdminDashboard() {
           <div className="h-72 w-full">
             {isMounted ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data}>
+                <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b'}} />
                   <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b'}} tickFormatter={(value) => `R$${value/1000}k`} />
@@ -356,6 +437,15 @@ export default function AdminDashboard() {
                 onChange={(e) => setEndDate(e.target.value)}
                 className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm text-slate-600"
               />
+              {(startDate || endDate) && (
+                <button 
+                  onClick={() => { setStartDate(''); setEndDate(''); }}
+                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Limpar filtros de data"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -516,22 +606,94 @@ export default function AdminDashboard() {
               </div>
               
               <div className="pt-8 border-t border-slate-100">
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-6">Itens do Pedido</p>
-                <div className="space-y-4">
-                  {selectedOrder.cart && Object.entries(selectedOrder.cart).map(([category, sizes]: [string, any]) => (
-                    Object.entries(sizes).map(([size, qty]: [string, any]) => (
-                      <div key={`${category}-${size}`} className="flex justify-between items-center">
-                        <span className="font-bold text-slate-700 capitalize">{category} - {size}</span>
-                        <span className="text-slate-900 font-bold">{qty}x</span>
-                      </div>
-                    ))
-                  ))}
+                <div className="flex justify-between items-center mb-6">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em]">Itens do Pedido</p>
+                  {!isEditingItems && (currentUser?.role === 'Administrador' || currentUser?.role === 'Editor' || (currentUser?.role === 'Visualizador' && selectedOrder.created_by === currentUser?.name)) && (
+                    <button 
+                      onClick={() => {
+                        setIsEditingItems(true);
+                        setEditedCart(JSON.parse(JSON.stringify(selectedOrder.cart || {})));
+                      }}
+                      className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      Editar Itens
+                    </button>
+                  )}
                 </div>
+                
+                {isEditingItems ? (
+                  <div className="space-y-6">
+                    {CATEGORIES.map(category => (
+                      <div key={category.id} className="bg-slate-50 p-4 rounded-xl">
+                        <h4 className="font-bold text-slate-800 mb-3 text-sm">{category.name}</h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          {category.sizes.map(size => {
+                            const qty = editedCart[category.id]?.[size.name] || 0;
+                            return (
+                              <div key={size.name} className="flex items-center justify-between bg-white p-2 rounded-lg border border-slate-200">
+                                <span className="text-xs font-bold text-slate-600">{size.name}</span>
+                                <div className="flex items-center gap-2">
+                                  <button 
+                                    onClick={() => handleEditCart(category.id, size.name, -1)}
+                                    className="p-1 hover:bg-slate-100 rounded text-slate-400"
+                                  >
+                                    <Minus className="w-3 h-3" />
+                                  </button>
+                                  <span className="text-xs font-bold w-4 text-center">{qty}</span>
+                                  <button 
+                                    onClick={() => handleEditCart(category.id, size.name, 1)}
+                                    className="p-1 hover:bg-slate-100 rounded text-slate-400"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                    <button 
+                      onClick={() => setIsEditingItems(false)}
+                      className="text-xs font-bold text-slate-500 hover:text-slate-700"
+                    >
+                      Cancelar edição de itens
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {selectedOrder.cart && Object.entries(selectedOrder.cart).map(([category, sizes]: [string, any]) => (
+                      Object.entries(sizes).map(([size, qty]: [string, any]) => (
+                        qty > 0 && (
+                          <div key={`${category}-${size}`} className="flex justify-between items-center">
+                            <span className="font-bold text-slate-700 capitalize">{category} - {size}</span>
+                            <span className="text-slate-900 font-bold">{qty}x</span>
+                          </div>
+                        )
+                      ))
+                    ))}
+                  </div>
+                )}
               </div>
               
               <div className="pt-8 border-t border-slate-100 flex justify-between items-center">
                 <span className="text-lg font-bold text-slate-700">Total</span>
-                <span className="text-3xl font-bold text-[#1E3A8A]">R$ {selectedOrder.total.toFixed(2).replace('.', ',')}</span>
+                <span className="text-3xl font-bold text-[#1E3A8A]">
+                  R$ {(() => {
+                    if (!isEditingItems) return selectedOrder.total.toFixed(2).replace('.', ',');
+                    
+                    let total = 0;
+                    Object.entries(editedCart).forEach(([catId, sizes]: [string, any]) => {
+                      const category = CATEGORIES.find(c => c.id === catId);
+                      Object.entries(sizes).forEach(([sizeName, qty]: [string, any]) => {
+                        const sizeOption = category?.sizes.find(s => s.name === sizeName);
+                        if (sizeOption) total += qty * sizeOption.price;
+                      });
+                    });
+                    return total.toFixed(2).replace('.', ',');
+                  })()}
+                </span>
               </div>
             </div>
             <div className="px-8 py-6 bg-slate-50 flex justify-between gap-3">
@@ -549,6 +711,7 @@ export default function AdminDashboard() {
                   onClick={() => {
                     setSelectedOrder(null);
                     setConfirmDelete(false);
+                    setIsEditingItems(false);
                   }}
                   className="px-8 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-200 transition-colors active:scale-95"
                 >
