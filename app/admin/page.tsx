@@ -267,7 +267,10 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteOrder = async () => {
-    if (!selectedOrder || !currentUser) return;
+    if (!selectedOrder || !currentUser) {
+      console.log('Exclusão cancelada: selectedOrder ou currentUser ausente', { selectedOrder, currentUser });
+      return;
+    }
 
     if (currentUser.role === 'Visualizador' && selectedOrder.created_by !== currentUser.name) {
       alert('Você só pode apagar os pedidos que você mesmo gerou.');
@@ -279,20 +282,23 @@ export default function AdminDashboard() {
       return;
     }
 
+    console.log('Iniciando exclusão do pedido:', selectedOrder.id);
     const { error } = await supabase
       .from('orders')
       .delete()
       .eq('id', selectedOrder.id);
 
     if (error) {
-      console.error('Error deleting order:', error);
-      alert('Erro ao excluir pedido.');
+      console.error('Erro ao excluir pedido no Supabase:', error);
+      alert('Erro ao excluir pedido: ' + error.message);
       return;
     }
 
+    console.log('Pedido excluído com sucesso');
     fetchOrders();
     setSelectedOrder(null);
     setConfirmDelete(false);
+    setIsEditingItems(false);
   };
 
   const handleLogout = () => {
@@ -563,20 +569,21 @@ export default function AdminDashboard() {
       {/* Order Details Modal */}
       {selectedOrder && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:hidden">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden">
-            <div className="p-8 flex justify-between items-center">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-8 flex justify-between items-center shrink-0 border-b border-slate-100">
               <h3 className="text-xl font-bold text-[#0F172A]">Detalhes do Pedido {selectedOrder.id}</h3>
               <button 
                 onClick={() => {
                   setSelectedOrder(null);
                   setConfirmDelete(false);
+                  setIsEditingItems(false);
                 }}
                 className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
               >
                 ✕
               </button>
             </div>
-            <div className="px-8 pb-8 space-y-8">
+            <div className="px-8 py-8 space-y-8 overflow-y-auto flex-1 custom-scrollbar">
               <div className="grid grid-cols-2 gap-y-8">
                 <div>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-2">Cliente</p>
@@ -696,7 +703,7 @@ export default function AdminDashboard() {
                 </span>
               </div>
             </div>
-            <div className="px-8 py-6 bg-slate-50 flex justify-between gap-3">
+            <div className="px-8 py-6 bg-slate-50 flex justify-between gap-3 shrink-0 border-t border-slate-100">
               {(currentUser?.role === 'Administrador' || currentUser?.role === 'Editor' || (currentUser?.role === 'Visualizador' && selectedOrder.created_by === currentUser?.name)) ? (
                 <button 
                   onClick={handleDeleteOrder}
