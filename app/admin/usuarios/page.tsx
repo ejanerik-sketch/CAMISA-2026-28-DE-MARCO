@@ -54,6 +54,7 @@ export default function UserManagement() {
     setIsSubmitting(true);
 
     if (editingUser) {
+      console.log('Atualizando usuário:', editingUser.id);
       const { error } = await supabase
         .from('users')
         .update({
@@ -64,12 +65,23 @@ export default function UserManagement() {
         .eq('id', editingUser.id);
 
       if (error) {
-        console.error('Error updating user:', error);
-        alert('Erro ao atualizar usuário.');
+        console.error('Erro ao atualizar usuário:', error);
+        alert(`Erro ao atualizar usuário: ${error.message}`);
         setIsSubmitting(false);
         return;
       }
+
+      // Se o usuário editado for o próprio usuário logado, atualiza o sessionStorage
+      const loggedInUser = JSON.parse(sessionStorage.getItem('logged_in_user') || '{}');
+      if (loggedInUser.id === editingUser.id) {
+        const updatedUser = { ...loggedInUser, name: newUser.name, email: newUser.email, role: newUser.role };
+        sessionStorage.setItem('logged_in_user', JSON.stringify(updatedUser));
+        console.log('Sessão do usuário atualizada');
+      }
+      
+      alert('Usuário atualizado com sucesso!');
     } else {
+      console.log('Inserindo novo usuário');
       const { error } = await supabase
         .from('users')
         .insert([{
@@ -79,11 +91,12 @@ export default function UserManagement() {
         }]);
 
       if (error) {
-        console.error('Error adding user:', error);
-        alert('Erro ao adicionar usuário. Verifique se o e-mail já existe.');
+        console.error('Erro ao adicionar usuário:', error);
+        alert(`Erro ao adicionar usuário: ${error.message}. Verifique se o e-mail já existe.`);
         setIsSubmitting(false);
         return;
       }
+      alert('Usuário cadastrado com sucesso!');
     }
 
     fetchUsers();

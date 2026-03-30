@@ -67,6 +67,7 @@ export default function AdminDashboard() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [newStatus, setNewStatus] = useState<string>('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isEditingItems, setIsEditingItems] = useState(false);
   const [editedCart, setEditedCart] = useState<any>({});
@@ -163,7 +164,7 @@ export default function AdminDashboard() {
   if (!isMounted || !currentUser) return null;
 
   const handleExport = () => {
-    const headers = ['ID Pedido', 'Cliente', 'Data', 'Origem', 'Itens', 'Total', 'Status'];
+    const headers = ['ID Pedido', 'Cliente', 'Telefone', 'Endereço', 'Grupo', 'Pagamento', 'Data', 'Origem', 'Itens', 'Total', 'Status'];
     const csvContent = [
       headers.join(','),
       ...filteredOrders.map(order => {
@@ -173,6 +174,10 @@ export default function AdminDashboard() {
         return [
           order.id,
           `"${order.name}"`,
+          `"${order.whatsapp}"`,
+          `"${order.endereco}"`,
+          `"${order.grupo || ''}"`,
+          `"${order.pagamento}"`,
           new Date(order.date).toLocaleDateString('pt-BR'),
           `"${order.created_by}"`,
           `"${itemsList}"`,
@@ -268,7 +273,7 @@ export default function AdminDashboard() {
 
   const handleDeleteOrder = async () => {
     if (!selectedOrder || !currentUser) {
-      console.log('Exclusão cancelada: selectedOrder ou currentUser ausente', { selectedOrder, currentUser });
+      alert('Erro: Pedido ou usuário não identificado.');
       return;
     }
 
@@ -282,23 +287,58 @@ export default function AdminDashboard() {
       return;
     }
 
-    console.log('Iniciando exclusão do pedido:', selectedOrder.id);
-    const { error } = await supabase
-      .from('orders')
-      .delete()
-      .eq('id', selectedOrder.id);
+    setIsDeleting(true);
+    try {
+      const orderId = selectedOrder.id;
+      console.log('--- INICIANDO EXCLUSÃO ---');
+      console.log('ID do Pedido:', orderId);
+      
+      // Tentar deletar sem o .select() primeiro para ver se o erro persiste
+      // Alguns ambientes Supabase podem ter problemas com .select() em deletes se o RLS for restritivo
+      const { error, status } = await supabase
+        .from('orders')
+        .delete()
+        .eq('id', orderId);
 
-    if (error) {
-      console.error('Erro ao excluir pedido no Supabase:', error);
-      alert('Erro ao excluir pedido: ' + error.message);
-      return;
+      console.log('Status da exclusão:', status);
+
+      if (error) {
+        console.error('Erro na exclusão:', error);
+        alert(`Erro ao excluir: ${error.message} (Código: ${error.code})`);
+        return;
+      }
+
+      // Como não usamos .select(), verificamos o status. 204 ou 200 geralmente indicam sucesso.
+      // Mas para ter certeza absoluta que foi deletado, podemos tentar buscar novamente ou confiar no status.
+      // No Supabase, se o delete não encontrar a linha, ele ainda retorna 204 (sucesso sem conteúdo).
+      // Então vamos verificar se a linha ainda existe.
+      
+      const { data: checkData } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('id', orderId)
+        .maybeSingle();
+      
+      if (checkData) {
+        console.warn('O pedido ainda existe após o comando de delete. Provavelmente RLS.');
+        alert('Atenção: O comando de exclusão foi enviado, mas o pedido ainda consta no banco de dados.\n\nIsso geralmente indica que as permissões de segurança (RLS) do Supabase estão impedindo a exclusão para o seu nível de acesso.');
+        setConfirmDelete(false);
+        return;
+      }
+
+      alert('Pedido excluído com sucesso!');
+      
+      setSelectedOrder(null);
+      setConfirmDelete(false);
+      setIsEditingItems(false);
+      
+      await fetchOrders();
+    } catch (err: any) {
+      console.error('Exceção na exclusão:', err);
+      alert('Erro inesperado: ' + (err.message || 'Erro de conexão'));
+    } finally {
+      setIsDeleting(false);
     }
-
-    console.log('Pedido excluído com sucesso');
-    fetchOrders();
-    setSelectedOrder(null);
-    setConfirmDelete(false);
-    setIsEditingItems(false);
   };
 
   const handleLogout = () => {
@@ -487,6 +527,10 @@ export default function AdminDashboard() {
                 <tr className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                   <th className="p-4 font-bold">ID Pedido</th>
                   <th className="p-4 font-bold">Cliente</th>
+                  <th className="p-4 font-bold">Telefone</th>
+                  <th className="p-4 font-bold">Grupo</th>
+                  <th className="p-4 font-bold">Endereço</th>
+                  <th className="p-4 font-bold">Pagamento</th>
                   <th className="p-4 font-bold">Data</th>
                   <th className="p-4 font-bold">Origem</th>
                   <th className="p-4 font-bold">Itens</th>
@@ -500,6 +544,10 @@ export default function AdminDashboard() {
                   <tr key={order.id} className="hover:bg-slate-50 transition-colors">
                     <td className="p-4 font-mono text-sm font-bold text-[#1E3A8A]">{order.id}</td>
                     <td className="p-4 font-medium text-slate-800">{order.name}</td>
+                    <td className="p-4 text-sm text-slate-600 font-medium">{order.whatsapp}</td>
+                    <td className="p-4 text-sm text-slate-500">{order.grupo || '-'}</td>
+                    <td className="p-4 text-sm text-slate-500 max-w-[200px] truncate" title={order.endereco}>{order.endereco}</td>
+                    <td className="p-4 text-sm text-slate-500">{order.pagamento}</td>
                     <td className="p-4 text-sm text-slate-500">{new Date(order.date).toLocaleDateString('pt-BR')}</td>
                     <td className="p-4 text-sm text-slate-500">
                       <span className="inline-flex items-center px-2 py-1 rounded-md bg-slate-100 text-slate-600 text-xs font-medium">
@@ -568,9 +616,9 @@ export default function AdminDashboard() {
 
       {/* Order Details Modal */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:hidden">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-8 flex justify-between items-center shrink-0 border-b border-slate-100">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:hidden">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col h-full max-h-[90vh]">
+            <div className="p-6 md:p-8 flex justify-between items-center shrink-0 border-b border-slate-100">
               <h3 className="text-xl font-bold text-[#0F172A]">Detalhes do Pedido {selectedOrder.id}</h3>
               <button 
                 onClick={() => {
@@ -580,14 +628,30 @@ export default function AdminDashboard() {
                 }}
                 className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="px-8 py-8 space-y-8 overflow-y-auto flex-1 custom-scrollbar">
-              <div className="grid grid-cols-2 gap-y-8">
+            <div className="px-6 md:px-8 py-6 md:py-8 space-y-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar">
+              <div className="grid grid-cols-2 gap-y-6 md:gap-y-8">
                 <div>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-2">Cliente</p>
                   <p className="font-bold text-slate-800">{selectedOrder.name}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-2">WhatsApp</p>
+                  <p className="font-bold text-slate-800">{selectedOrder.whatsapp}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-2">Endereço</p>
+                  <p className="font-bold text-slate-800">{selectedOrder.endereco}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-2">Grupo</p>
+                  <p className="font-bold text-slate-800">{selectedOrder.grupo || 'Nenhum'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-2">Pagamento</p>
+                  <p className="font-bold text-slate-800">{selectedOrder.pagamento}</p>
                 </div>
                 <div>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-2">Data do Pedido</p>
@@ -632,25 +696,25 @@ export default function AdminDashboard() {
                 {isEditingItems ? (
                   <div className="space-y-6">
                     {CATEGORIES.map(category => (
-                      <div key={category.id} className="bg-slate-50 p-4 rounded-xl">
+                      <div key={category.id} className="bg-slate-50 p-3 md:p-4 rounded-xl border border-slate-100">
                         <h4 className="font-bold text-slate-800 mb-3 text-sm">{category.name}</h4>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                           {category.sizes.map(size => {
                             const qty = editedCart[category.id]?.[size.name] || 0;
                             return (
-                              <div key={size.name} className="flex items-center justify-between bg-white p-2 rounded-lg border border-slate-200">
-                                <span className="text-xs font-bold text-slate-600">{size.name}</span>
-                                <div className="flex items-center gap-2">
+                              <div key={size.name} className="flex items-center justify-between bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
+                                <span className="text-[11px] font-bold text-slate-600 truncate mr-1">{size.name}</span>
+                                <div className="flex items-center gap-1.5">
                                   <button 
                                     onClick={() => handleEditCart(category.id, size.name, -1)}
-                                    className="p-1 hover:bg-slate-100 rounded text-slate-400"
+                                    className="p-1 hover:bg-slate-100 rounded text-slate-400 transition-colors"
                                   >
                                     <Minus className="w-3 h-3" />
                                   </button>
-                                  <span className="text-xs font-bold w-4 text-center">{qty}</span>
+                                  <span className="text-xs font-bold w-5 text-center">{qty}</span>
                                   <button 
                                     onClick={() => handleEditCart(category.id, size.name, 1)}
-                                    className="p-1 hover:bg-slate-100 rounded text-slate-400"
+                                    className="p-1 hover:bg-slate-100 rounded text-slate-400 transition-colors"
                                   >
                                     <Plus className="w-3 h-3" />
                                   </button>
@@ -661,12 +725,14 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                     ))}
-                    <button 
-                      onClick={() => setIsEditingItems(false)}
-                      className="text-xs font-bold text-slate-500 hover:text-slate-700"
-                    >
-                      Cancelar edição de itens
-                    </button>
+                    <div className="flex justify-center">
+                      <button 
+                        onClick={() => setIsEditingItems(false)}
+                        className="text-sm font-bold text-slate-500 hover:text-slate-700 underline underline-offset-4"
+                      >
+                        Cancelar edição de itens
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -705,13 +771,33 @@ export default function AdminDashboard() {
             </div>
             <div className="px-8 py-6 bg-slate-50 flex justify-between gap-3 shrink-0 border-t border-slate-100">
               {(currentUser?.role === 'Administrador' || currentUser?.role === 'Editor' || (currentUser?.role === 'Visualizador' && selectedOrder.created_by === currentUser?.name)) ? (
-                <button 
-                  onClick={handleDeleteOrder}
-                  className={`px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2 active:scale-95 ${confirmDelete ? 'bg-red-600 text-white hover:bg-red-700' : 'text-red-600 hover:bg-red-50'}`}
-                >
-                  <Trash2 className="w-4 h-4" />
-                  {confirmDelete ? 'Confirmar Exclusão' : 'Excluir Pedido'}
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={handleDeleteOrder}
+                    disabled={isDeleting}
+                    className={`px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2 active:scale-95 ${confirmDelete ? 'bg-red-600 text-white hover:bg-red-700' : 'text-red-600 hover:bg-red-50'} disabled:opacity-50`}
+                  >
+                    {isDeleting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                        Excluindo...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4" />
+                        {confirmDelete ? 'Confirmar Agora' : 'Excluir Pedido'}
+                      </>
+                    )}
+                  </button>
+                  {confirmDelete && !isDeleting && (
+                    <button 
+                      onClick={() => setConfirmDelete(false)}
+                      className="px-4 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-all"
+                    >
+                      Cancelar
+                    </button>
+                  )}
+                </div>
               ) : <div></div>}
               <div className="flex gap-3">
                 <button 

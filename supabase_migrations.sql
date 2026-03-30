@@ -36,10 +36,12 @@ CREATE POLICY "Allow public read for login" ON public.users FOR SELECT USING (tr
 CREATE POLICY "Allow admin to manage users" ON public.users FOR ALL USING (true); -- In production, restrict to admin role
 
 -- Policies for Orders
-CREATE POLICY "Allow public to create orders" ON public.orders FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow authenticated to read/update orders" ON public.orders FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated to update orders" ON public.orders FOR UPDATE USING (true);
-CREATE POLICY "Allow authenticated to delete orders" ON public.orders FOR DELETE USING (true);
+DROP POLICY IF EXISTS "Allow public to create orders" ON public.orders;
+DROP POLICY IF EXISTS "Allow authenticated to read/update orders" ON public.orders;
+DROP POLICY IF EXISTS "Allow authenticated to update orders" ON public.orders;
+DROP POLICY IF EXISTS "Allow authenticated to delete orders" ON public.orders;
+
+CREATE POLICY "Enable all for all users" ON public.orders FOR ALL USING (true) WITH CHECK (true);
 
 -- Initial Master Admin (Password: camisa2026)
 INSERT INTO public.users (name, email, password, role, status)
