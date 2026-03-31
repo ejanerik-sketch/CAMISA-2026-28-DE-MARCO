@@ -350,6 +350,14 @@ export default function AdminDashboard() {
   const totalItems = filteredOrders.reduce((acc, order) => acc + order.items, 0);
   const totalRevenue = filteredOrders.reduce((acc, order) => acc + order.total, 0);
 
+  const revenuePaid = filteredOrders
+    .filter(o => ['Pago', 'Produção', 'Entregue'].includes(o.status))
+    .reduce((acc, o) => acc + o.total, 0);
+  const revenuePending = filteredOrders
+    .filter(o => o.status === 'Pendente')
+    .reduce((acc, o) => acc + o.total, 0);
+  const countPending = filteredOrders.filter(o => o.status === 'Pendente').length;
+
   return (
     <main id="admin-report" className="max-w-7xl mx-auto px-6 py-12">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
@@ -414,6 +422,37 @@ export default function AdminDashboard() {
         <div className="bg-white p-8 rounded-2xl shadow-lg shadow-slate-200/50 border border-slate-100">
           <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-4">Receita Total</h3>
           <p className="text-5xl text-[#1E3A8A] font-bold">R$ {totalRevenue.toFixed(2).replace('.', ',')}</p>
+        </div>
+      </div>
+
+      {/* Secondary KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-2">Pago</h3>
+            <p className="text-3xl text-emerald-600 font-bold">R$ {revenuePaid.toFixed(2).replace('.', ',')}</p>
+          </div>
+          <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+            <CheckCircle className="w-6 h-6" />
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-2">A Receber</h3>
+            <p className="text-3xl text-amber-600 font-bold">R$ {revenuePending.toFixed(2).replace('.', ',')}</p>
+          </div>
+          <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">
+            <Clock className="w-6 h-6" />
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-2">Pedidos Pendentes</h3>
+            <p className="text-3xl text-slate-700 font-bold">{countPending}</p>
+          </div>
+          <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
+            <AlertCircle className="w-6 h-6" />
+          </div>
         </div>
       </div>
 
