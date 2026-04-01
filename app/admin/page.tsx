@@ -265,9 +265,11 @@ export default function AdminDashboard() {
       }
     });
 
+    let totalShirts = 0;
     const tableData = Object.entries(summary)
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([key, qty]) => {
+        totalShirts += qty;
         const [stage, item] = key.split(' | ');
         return [stage, item, qty.toString()];
       });
@@ -280,6 +282,14 @@ export default function AdminDashboard() {
       headStyles: { fillColor: [30, 58, 138] }, // #1E3A8A
       styles: { fontSize: 10 },
     });
+
+    // @ts-ignore
+    const finalY = doc.lastAutoTable.finalY || 42;
+    
+    doc.setFontSize(12);
+    doc.setTextColor(15, 23, 42);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Total de Camisas: ${totalShirts}`, 14, finalY + 10);
 
     doc.save(`producao_${currentDate.toISOString().split('T')[0]}.pdf`);
   };
