@@ -411,12 +411,56 @@ export default function NovoPedido() {
                 <input 
                   type="radio" 
                   name="productionStatus" 
-                  value="Em Produção" 
-                  checked={formData.productionStatus === 'Em Produção'}
+                  value="Produção 1ª ETAPA" 
+                  checked={formData.productionStatus === 'Produção 1ª ETAPA'}
                   onChange={(e) => setFormData({...formData, productionStatus: e.target.value})}
                   className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
                 />
-                <span className="text-slate-700 font-medium">Em Produção</span>
+                <span className="text-slate-700 font-medium">Produção 1ª ETAPA</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="productionStatus" 
+                  value="Produção 2ª ETAPA" 
+                  checked={formData.productionStatus === 'Produção 2ª ETAPA'}
+                  onChange={(e) => setFormData({...formData, productionStatus: e.target.value})}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
+                />
+                <span className="text-slate-700 font-medium">Produção 2ª ETAPA</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="productionStatus" 
+                  value="Produção 3ª ETAPA" 
+                  checked={formData.productionStatus === 'Produção 3ª ETAPA'}
+                  onChange={(e) => setFormData({...formData, productionStatus: e.target.value})}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
+                />
+                <span className="text-slate-700 font-medium">Produção 3ª ETAPA</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="productionStatus" 
+                  value="Produção 4ª ETAPA" 
+                  checked={formData.productionStatus === 'Produção 4ª ETAPA'}
+                  onChange={(e) => setFormData({...formData, productionStatus: e.target.value})}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
+                />
+                <span className="text-slate-700 font-medium">Produção 4ª ETAPA</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="productionStatus" 
+                  value="Produção 5ª ETAPA" 
+                  checked={formData.productionStatus === 'Produção 5ª ETAPA'}
+                  onChange={(e) => setFormData({...formData, productionStatus: e.target.value})}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
+                />
+                <span className="text-slate-700 font-medium">Produção 5ª ETAPA</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input 

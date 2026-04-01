@@ -68,7 +68,7 @@ const getPaymentStatus = (status: string) => {
 const getProductionStatus = (status: string) => {
   if (!status) return 'Aguardando';
   if (status.includes(' | ')) return status.split(' | ')[1];
-  if (status === 'Produção') return 'Em Produção';
+  if (status === 'Produção' || status === 'Em Produção') return 'Produção 1ª ETAPA';
   if (status === 'Entregue') return 'Entregue';
   return 'Aguardando';
 };
@@ -236,15 +236,28 @@ export default function AdminDashboard() {
     doc.setTextColor(100);
     doc.text(`Gerado em: ${formattedDate} às ${formattedTime}`, 14, 30);
 
-    const productionOrders = orders.filter(o => getProductionStatus(o.status) === 'Em Produção');
+    const targetStage = filterProductionStatus !== 'Todos' && filterProductionStatus.startsWith('Produção') 
+      ? filterProductionStatus 
+      : 'Todas as Etapas de Produção';
+    
+    doc.text(`Etapa: ${targetStage}`, 14, 36);
+
+    const productionOrders = orders.filter(o => {
+      const status = getProductionStatus(o.status);
+      if (filterProductionStatus !== 'Todos') {
+        return status === filterProductionStatus;
+      }
+      return status.startsWith('Produção');
+    });
     
     const summary: Record<string, number> = {};
     productionOrders.forEach(order => {
+      const stage = getProductionStatus(order.status);
       if (order.cart) {
         Object.entries(order.cart).forEach(([category, sizes]: [string, any]) => {
           Object.entries(sizes as Record<string, number>).forEach(([size, qty]) => {
             if (qty > 0) {
-              const key = `${category} - ${size}`;
+              const key = `${stage} | ${category} - ${size}`;
               summary[key] = (summary[key] || 0) + qty;
             }
           });
@@ -253,12 +266,15 @@ export default function AdminDashboard() {
     });
 
     const tableData = Object.entries(summary)
-      .sort((a, b) => b[1] - a[1])
-      .map(([item, qty]) => [item, qty.toString()]);
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, qty]) => {
+        const [stage, item] = key.split(' | ');
+        return [stage, item, qty.toString()];
+      });
 
     autoTable(doc, {
-      startY: 40,
-      head: [['Modelo e Tamanho', 'Quantidade']],
+      startY: 42,
+      head: [['Etapa', 'Modelo e Tamanho', 'Quantidade']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [30, 58, 138] }, // #1E3A8A
@@ -266,6 +282,82 @@ export default function AdminDashboard() {
     });
 
     doc.save(`producao_${currentDate.toISOString().split('T')[0]}.pdf`);
+  };
+
+  const handleExportSingleOrderPDF = (order: any) => {
+    const doc = new jsPDF();
+    const currentDate = new Date();
+    const formattedDate = currentDate.toLocaleDateString('pt-BR');
+    const formattedTime = currentDate.toLocaleTimeString('pt-BR');
+
+    doc.setFontSize(18);
+    doc.setTextColor(15, 23, 42); // #0F172A
+    doc.text(`Detalhes do Pedido ${order.id}`, 14, 22);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Gerado em: ${formattedDate} às ${formattedTime}`, 14, 30);
+
+    doc.setFontSize(12);
+    doc.setTextColor(15, 23, 42);
+    
+    let yPos = 40;
+    const lineHeight = 7;
+
+    const addField = (label: string, value: string) => {
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${label}:`, 14, yPos);
+      doc.setFont('helvetica', 'normal');
+      const labelWidth = doc.getTextWidth(`${label}: `);
+      doc.text(value, 14 + labelWidth, yPos);
+      yPos += lineHeight;
+    };
+
+    addField('Cliente', order.name);
+    addField('WhatsApp', order.whatsapp);
+    addField('Endereço', order.endereco);
+    addField('Grupo', order.grupo || 'Nenhum');
+    addField('Pagamento', order.pagamento);
+    addField('Data do Pedido', new Date(order.date).toLocaleDateString('pt-BR'));
+    addField('Origem', order.created_by);
+    addField('Status Pagamento', getPaymentStatus(order.status));
+    addField('Status Produção', getProductionStatus(order.status));
+
+    yPos += 5;
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Itens do Pedido', 14, yPos);
+    yPos += 8;
+
+    const tableData: string[][] = [];
+    if (order.cart) {
+      Object.entries(order.cart).forEach(([category, sizes]: [string, any]) => {
+        Object.entries(sizes as Record<string, number>).forEach(([size, qty]) => {
+          if (qty > 0) {
+            tableData.push([category, size, qty.toString()]);
+          }
+        });
+      });
+    }
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Categoria', 'Tamanho', 'Quantidade']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [30, 58, 138] },
+      styles: { fontSize: 10 },
+      margin: { left: 14, right: 14 }
+    });
+
+    // @ts-ignore
+    yPos = doc.lastAutoTable.finalY + 15;
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Total do Pedido: R$ ${order.total.toFixed(2).replace('.', ',')}`, 14, yPos);
+
+    doc.save(`pedido_${order.id}.pdf`);
   };
 
   const handleUpdateStatus = async () => {
@@ -474,7 +566,7 @@ export default function AdminDashboard() {
               {filterProductionStatus === 'Todos' ? 'Produção' : filterProductionStatus}
             </button>
             <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-              {['Todos', 'Aguardando', 'Em Produção', 'Entregue'].map(status => (
+              {['Todos', 'Aguardando', 'Produção 1ª ETAPA', 'Produção 2ª ETAPA', 'Produção 3ª ETAPA', 'Produção 4ª ETAPA', 'Produção 5ª ETAPA', 'Entregue'].map(status => (
                 <button 
                   key={status}
                   onClick={() => setFilterProductionStatus(status)}
@@ -715,28 +807,37 @@ export default function AdminDashboard() {
                         </span>
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold
                           ${getProductionStatus(order.status) === 'Entregue' ? 'bg-green-100 text-green-700' : 
-                            getProductionStatus(order.status) === 'Em Produção' ? 'bg-blue-100 text-blue-700' : 
+                            getProductionStatus(order.status).startsWith('Produção') ? 'bg-blue-100 text-blue-700' : 
                             'bg-gray-100 text-gray-700'}`}
                         >
                           {getProductionStatus(order.status) === 'Entregue' && <CheckCircle className="w-3 h-3" />}
-                          {getProductionStatus(order.status) === 'Em Produção' && <AlertCircle className="w-3 h-3" />}
+                          {getProductionStatus(order.status).startsWith('Produção') && <AlertCircle className="w-3 h-3" />}
                           {getProductionStatus(order.status) === 'Aguardando' && <Clock className="w-3 h-3" />}
                           {getProductionStatus(order.status)}
                         </span>
                       </div>
                     </td>
                     <td className="p-4 print:hidden">
-                      <button 
-                        onClick={() => {
-                          setSelectedOrder(order);
-                          setNewPaymentStatus(getPaymentStatus(order.status));
-                          setNewProductionStatus(getProductionStatus(order.status));
-                          setEditedName(order.name);
-                        }}
-                        className="px-4 py-1.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-lg hover:bg-slate-200 transition-colors active:scale-95"
-                      >
-                        Ver Detalhes
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => {
+                            setSelectedOrder(order);
+                            setNewPaymentStatus(getPaymentStatus(order.status));
+                            setNewProductionStatus(getProductionStatus(order.status));
+                            setEditedName(order.name);
+                          }}
+                          className="px-4 py-1.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-lg hover:bg-slate-200 transition-colors active:scale-95"
+                        >
+                          Ver Detalhes
+                        </button>
+                        <button
+                          onClick={() => handleExportSingleOrderPDF(order)}
+                          className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors active:scale-95"
+                          title="Baixar Pedido em PDF"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )) : (
@@ -848,7 +949,11 @@ export default function AdminDashboard() {
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm font-bold text-slate-700"
                   >
                     <option value="Aguardando">Aguardando</option>
-                    <option value="Em Produção">Em Produção</option>
+                    <option value="Produção 1ª ETAPA">Produção 1ª ETAPA</option>
+                    <option value="Produção 2ª ETAPA">Produção 2ª ETAPA</option>
+                    <option value="Produção 3ª ETAPA">Produção 3ª ETAPA</option>
+                    <option value="Produção 4ª ETAPA">Produção 4ª ETAPA</option>
+                    <option value="Produção 5ª ETAPA">Produção 5ª ETAPA</option>
                     <option value="Entregue">Entregue</option>
                   </select>
                 </div>
