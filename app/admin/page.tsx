@@ -4,8 +4,10 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Search, Filter, Download, CheckCircle, Clock, AlertCircle, Users, PlusCircle, LogOut, Trash2, X, Edit2, Minus, Plus } from 'lucide-react';
+import { Search, Filter, Download, CheckCircle, Clock, AlertCircle, Users, PlusCircle, LogOut, Trash2, X, Edit2, Minus, Plus, FileText } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // Categories for editing
 const CATEGORIES = [
@@ -56,16 +58,34 @@ const CATEGORIES = [
   }
 ];
 
+const getPaymentStatus = (status: string) => {
+  if (!status) return 'Pendente';
+  if (status.includes(' | ')) return status.split(' | ')[0];
+  if (['Produção', 'Entregue'].includes(status)) return 'Pendente';
+  return status;
+};
+
+const getProductionStatus = (status: string) => {
+  if (!status) return 'Aguardando';
+  if (status.includes(' | ')) return status.split(' | ')[1];
+  if (status === 'Produção') return 'Em Produção';
+  if (status === 'Entregue') return 'Entregue';
+  return 'Aguardando';
+};
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [orders, setOrders] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'lista' | 'producao'>('lista');
-  const [filterStatus, setFilterStatus] = useState<string>('Todos');
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState<string>('Todos');
+  const [filterProductionStatus, setFilterProductionStatus] = useState<string>('Todos');
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [newStatus, setNewStatus] = useState<string>('');
+  const [newPaymentStatus, setNewPaymentStatus] = useState<string>('');
+  const [newProductionStatus, setNewProductionStatus] = useState<string>('');
+  const [editedName, setEditedName] = useState<string>('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -109,7 +129,12 @@ export default function AdminDashboard() {
 
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
-      const matchesStatus = filterStatus === 'Todos' || order.status === filterStatus;
+      const paymentStatus = getPaymentStatus(order.status);
+      const productionStatus = getProductionStatus(order.status);
+      
+      const matchesPayment = filterPaymentStatus === 'Todos' || paymentStatus === filterPaymentStatus;
+      const matchesProduction = filterProductionStatus === 'Todos' || productionStatus === filterProductionStatus;
+      
       const matchesSearch = order.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                            order.id.toLowerCase().includes(searchQuery.toLowerCase());
       
@@ -122,9 +147,9 @@ export default function AdminDashboard() {
         matchesDate = order.date <= endDate;
       }
 
-      return matchesStatus && matchesSearch && matchesDate;
+      return matchesPayment && matchesProduction && matchesSearch && matchesDate;
     });
-  }, [orders, filterStatus, searchQuery, startDate, endDate]);
+  }, [orders, filterPaymentStatus, filterProductionStatus, searchQuery, startDate, endDate]);
 
   const chartData = useMemo(() => {
     const sales: Record<string, number> = {};
@@ -198,8 +223,53 @@ export default function AdminDashboard() {
     document.body.removeChild(link);
   };
 
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+    const currentDate = new Date();
+    const formattedDate = currentDate.toLocaleDateString('pt-BR');
+    const formattedTime = currentDate.toLocaleTimeString('pt-BR');
+
+    doc.setFontSize(18);
+    doc.text('Relatório de Produção', 14, 22);
+    
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Gerado em: ${formattedDate} às ${formattedTime}`, 14, 30);
+
+    const productionOrders = orders.filter(o => getProductionStatus(o.status) === 'Em Produção');
+    
+    const summary: Record<string, number> = {};
+    productionOrders.forEach(order => {
+      if (order.cart) {
+        Object.entries(order.cart).forEach(([category, sizes]: [string, any]) => {
+          Object.entries(sizes as Record<string, number>).forEach(([size, qty]) => {
+            if (qty > 0) {
+              const key = `${category} - ${size}`;
+              summary[key] = (summary[key] || 0) + qty;
+            }
+          });
+        });
+      }
+    });
+
+    const tableData = Object.entries(summary)
+      .sort((a, b) => b[1] - a[1])
+      .map(([item, qty]) => [item, qty.toString()]);
+
+    autoTable(doc, {
+      startY: 40,
+      head: [['Modelo e Tamanho', 'Quantidade']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [30, 58, 138] }, // #1E3A8A
+      styles: { fontSize: 10 },
+    });
+
+    doc.save(`producao_${currentDate.toISOString().split('T')[0]}.pdf`);
+  };
+
   const handleUpdateStatus = async () => {
-    if (!selectedOrder || !newStatus || !currentUser) return;
+    if (!selectedOrder || !newPaymentStatus || !newProductionStatus || !currentUser) return;
     
     // Visualizador can only edit their own orders
     if (currentUser.role === 'Visualizador' && selectedOrder.created_by !== currentUser.name) {
@@ -209,7 +279,7 @@ export default function AdminDashboard() {
 
     setIsUpdating(true);
     
-    let updateData: any = { status: newStatus };
+    let updateData: any = { status: `${newPaymentStatus} | ${newProductionStatus}`, name: editedName };
     
     if (isEditingItems) {
       let totalItems = 0;
@@ -350,13 +420,18 @@ export default function AdminDashboard() {
   const totalItems = filteredOrders.reduce((acc, order) => acc + order.items, 0);
   const totalRevenue = filteredOrders.reduce((acc, order) => acc + order.total, 0);
 
-  const revenuePaid = filteredOrders
-    .filter(o => ['Pago', 'Produção', 'Entregue'].includes(o.status))
+  const revenuePix = filteredOrders
+    .filter(o => getPaymentStatus(o.status) === 'Pago via Pix' || (['Pago', 'Produção', 'Entregue'].includes(o.status) && o.pagamento === 'Pix'))
+    .reduce((acc, o) => acc + o.total, 0);
+  const revenueDinheiro = filteredOrders
+    .filter(o => getPaymentStatus(o.status) === 'Pago via Dinheiro' || (['Pago', 'Produção', 'Entregue'].includes(o.status) && o.pagamento === 'Dinheiro'))
+    .reduce((acc, o) => acc + o.total, 0);
+  const revenueCartao = filteredOrders
+    .filter(o => getPaymentStatus(o.status) === 'Pago via Cartão' || (['Pago', 'Produção', 'Entregue'].includes(o.status) && o.pagamento === 'Cartão'))
     .reduce((acc, o) => acc + o.total, 0);
   const revenuePending = filteredOrders
-    .filter(o => o.status === 'Pendente')
+    .filter(o => getPaymentStatus(o.status) === 'Pendente')
     .reduce((acc, o) => acc + o.total, 0);
-  const countPending = filteredOrders.filter(o => o.status === 'Pendente').length;
 
   return (
     <main id="admin-report" className="max-w-7xl mx-auto px-6 py-12">
@@ -379,13 +454,30 @@ export default function AdminDashboard() {
           <div className="relative group">
             <button className="flex items-center gap-2 px-6 py-2.5 bg-[#F1F5F9] text-[#334155] font-bold rounded-lg hover:bg-slate-200 transition-colors active:scale-95">
               <Filter className="w-4 h-4" />
-              {filterStatus === 'Todos' ? 'Filtrar' : filterStatus}
+              {filterPaymentStatus === 'Todos' ? 'Pagamento' : filterPaymentStatus}
             </button>
             <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-              {['Todos', 'Pendente', 'Pago', 'Produção', 'Entregue'].map(status => (
+              {['Todos', 'Pendente', 'Pago via Pix', 'Pago via Dinheiro', 'Pago via Cartão'].map(status => (
                 <button 
                   key={status}
-                  onClick={() => setFilterStatus(status)}
+                  onClick={() => setFilterPaymentStatus(status)}
+                  className="w-full text-left px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 first:rounded-t-xl last:rounded-b-xl"
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="relative group">
+            <button className="flex items-center gap-2 px-6 py-2.5 bg-[#F1F5F9] text-[#334155] font-bold rounded-lg hover:bg-slate-200 transition-colors active:scale-95">
+              <Filter className="w-4 h-4" />
+              {filterProductionStatus === 'Todos' ? 'Produção' : filterProductionStatus}
+            </button>
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+              {['Todos', 'Aguardando', 'Em Produção', 'Entregue'].map(status => (
+                <button 
+                  key={status}
+                  onClick={() => setFilterProductionStatus(status)}
                   className="w-full text-left px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 first:rounded-t-xl last:rounded-b-xl"
                 >
                   {status}
@@ -394,10 +486,16 @@ export default function AdminDashboard() {
             </div>
           </div>
           {currentUser?.role !== 'Visualizador' && (
-            <button onClick={handleExport} className="flex items-center gap-2 px-6 py-2.5 bg-[#1E3A8A] text-white font-bold rounded-lg hover:bg-blue-900 transition-colors active:scale-95 text-sm">
-              <Download className="w-4 h-4" />
-              Exportar CSV
-            </button>
+            <>
+              <button onClick={handleExportPDF} className="flex items-center gap-2 px-6 py-2.5 bg-[#F59E0B] text-white font-bold rounded-lg hover:bg-amber-600 transition-colors active:scale-95 text-sm">
+                <FileText className="w-4 h-4" />
+                Exportar Produção (PDF)
+              </button>
+              <button onClick={handleExport} className="flex items-center gap-2 px-6 py-2.5 bg-[#1E3A8A] text-white font-bold rounded-lg hover:bg-blue-900 transition-colors active:scale-95 text-sm">
+                <Download className="w-4 h-4" />
+                Exportar CSV
+              </button>
+            </>
           )}
           <button 
             onClick={handleLogout}
@@ -426,32 +524,41 @@ export default function AdminDashboard() {
       </div>
 
       {/* Secondary KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
           <div>
-            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-2">Pago</h3>
-            <p className="text-3xl text-emerald-600 font-bold">R$ {revenuePaid.toFixed(2).replace('.', ',')}</p>
+            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-2">Pago via Pix</h3>
+            <p className="text-2xl text-emerald-600 font-bold">R$ {revenuePix.toFixed(2).replace('.', ',')}</p>
           </div>
-          <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
-            <CheckCircle className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+            <CheckCircle className="w-5 h-5" />
           </div>
         </div>
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
           <div>
-            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-2">A Receber</h3>
-            <p className="text-3xl text-amber-600 font-bold">R$ {revenuePending.toFixed(2).replace('.', ',')}</p>
+            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-2">Pago via Dinheiro</h3>
+            <p className="text-2xl text-emerald-600 font-bold">R$ {revenueDinheiro.toFixed(2).replace('.', ',')}</p>
           </div>
-          <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">
-            <Clock className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+            <CheckCircle className="w-5 h-5" />
           </div>
         </div>
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
           <div>
-            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-2">Pedidos Pendentes</h3>
-            <p className="text-3xl text-slate-700 font-bold">{countPending}</p>
+            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-2">Pago via Cartão</h3>
+            <p className="text-2xl text-emerald-600 font-bold">R$ {revenueCartao.toFixed(2).replace('.', ',')}</p>
           </div>
-          <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
-            <AlertCircle className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+            <CheckCircle className="w-5 h-5" />
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-2">Pendente</h3>
+            <p className="text-2xl text-amber-600 font-bold">R$ {revenuePending.toFixed(2).replace('.', ',')}</p>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">
+            <Clock className="w-5 h-5" />
           </div>
         </div>
       </div>
@@ -596,24 +703,35 @@ export default function AdminDashboard() {
                     <td className="p-4 text-sm text-slate-500">{order.items} peças</td>
                     <td className="p-4 font-bold text-slate-800">R$ {order.total.toFixed(2).replace('.', ',')}</td>
                     <td className="p-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold
-                        ${order.status === 'Pago' ? 'bg-green-100 text-green-700' : 
-                          order.status === 'Pendente' ? 'bg-yellow-100 text-yellow-700' : 
-                          order.status === 'Produção' ? 'bg-blue-100 text-blue-700' : 
-                          'bg-gray-100 text-gray-700'}`}
-                      >
-                        {order.status === 'Pago' && <CheckCircle className="w-3 h-3" />}
-                        {order.status === 'Pendente' && <Clock className="w-3 h-3" />}
-                        {order.status === 'Produção' && <AlertCircle className="w-3 h-3" />}
-                        {order.status === 'Entregue' && <CheckCircle className="w-3 h-3" />}
-                        {order.status}
-                      </span>
+                      <div className="flex flex-col gap-1.5 items-start">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold
+                          ${getPaymentStatus(order.status).startsWith('Pago') ? 'bg-green-100 text-green-700' : 
+                            getPaymentStatus(order.status) === 'Pendente' ? 'bg-yellow-100 text-yellow-700' : 
+                            'bg-gray-100 text-gray-700'}`}
+                        >
+                          {getPaymentStatus(order.status).startsWith('Pago') && <CheckCircle className="w-3 h-3" />}
+                          {getPaymentStatus(order.status) === 'Pendente' && <Clock className="w-3 h-3" />}
+                          {getPaymentStatus(order.status)}
+                        </span>
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold
+                          ${getProductionStatus(order.status) === 'Entregue' ? 'bg-green-100 text-green-700' : 
+                            getProductionStatus(order.status) === 'Em Produção' ? 'bg-blue-100 text-blue-700' : 
+                            'bg-gray-100 text-gray-700'}`}
+                        >
+                          {getProductionStatus(order.status) === 'Entregue' && <CheckCircle className="w-3 h-3" />}
+                          {getProductionStatus(order.status) === 'Em Produção' && <AlertCircle className="w-3 h-3" />}
+                          {getProductionStatus(order.status) === 'Aguardando' && <Clock className="w-3 h-3" />}
+                          {getProductionStatus(order.status)}
+                        </span>
+                      </div>
                     </td>
                     <td className="p-4 print:hidden">
                       <button 
                         onClick={() => {
                           setSelectedOrder(order);
-                          setNewStatus(order.status);
+                          setNewPaymentStatus(getPaymentStatus(order.status));
+                          setNewProductionStatus(getProductionStatus(order.status));
+                          setEditedName(order.name);
                         }}
                         className="px-4 py-1.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-lg hover:bg-slate-200 transition-colors active:scale-95"
                       >
@@ -674,7 +792,16 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-2 gap-y-6 md:gap-y-8">
                 <div>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-2">Cliente</p>
-                  <p className="font-bold text-slate-800">{selectedOrder.name}</p>
+                  {(currentUser?.role === 'Administrador' || currentUser?.role === 'Editor' || (currentUser?.role === 'Visualizador' && selectedOrder.created_by === currentUser?.name)) ? (
+                    <input 
+                      type="text" 
+                      value={editedName}
+                      onChange={(e) => setEditedName(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm font-bold text-slate-700"
+                    />
+                  ) : (
+                    <p className="font-bold text-slate-800">{selectedOrder.name}</p>
+                  )}
                 </div>
                 <div>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-2">WhatsApp</p>
@@ -701,15 +828,27 @@ export default function AdminDashboard() {
                   <p className="font-bold text-slate-800">{selectedOrder.created_by}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-2">Status</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-2">Status Pagamento</p>
                   <select 
-                    value={newStatus}
-                    onChange={(e) => setNewStatus(e.target.value)}
+                    value={newPaymentStatus}
+                    onChange={(e) => setNewPaymentStatus(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm font-bold text-slate-700"
                   >
                     <option value="Pendente">Pendente</option>
-                    <option value="Pago">Pago</option>
-                    <option value="Produção">Produção</option>
+                    <option value="Pago via Pix">Pago via Pix</option>
+                    <option value="Pago via Dinheiro">Pago via Dinheiro</option>
+                    <option value="Pago via Cartão">Pago via Cartão</option>
+                  </select>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-2">Status Produção</p>
+                  <select 
+                    value={newProductionStatus}
+                    onChange={(e) => setNewProductionStatus(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm font-bold text-slate-700"
+                  >
+                    <option value="Aguardando">Aguardando</option>
+                    <option value="Em Produção">Em Produção</option>
                     <option value="Entregue">Entregue</option>
                   </select>
                 </div>

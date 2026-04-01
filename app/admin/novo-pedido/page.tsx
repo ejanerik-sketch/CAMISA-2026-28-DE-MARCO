@@ -78,7 +78,8 @@ export default function NovoPedido() {
     endereco: '',
     grupo: '',
     pagamento: '',
-    status: 'Pendente'
+    paymentStatus: 'Pendente',
+    productionStatus: 'Aguardando'
   });
 
   useEffect(() => {
@@ -159,7 +160,7 @@ export default function NovoPedido() {
       endereco: formData.endereco,
       grupo: formData.grupo,
       pagamento: formData.pagamento,
-      status: formData.status,
+      status: `${formData.paymentStatus} | ${formData.productionStatus}`,
       items: getTotalItems(),
       total: getTotalPrice(),
       cart,
@@ -337,33 +338,98 @@ export default function NovoPedido() {
         </section>
 
         {/* Status */}
-        <section>
-          <h2 className="text-xl font-bold text-[#1E3A8A] mb-6 flex items-center gap-2 border-b border-slate-100 pb-3">
-            Status Inicial
-          </h2>
-          <div className="flex gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input 
-                type="radio" 
-                name="status" 
-                value="Pendente" 
-                checked={formData.status === 'Pendente'}
-                onChange={(e) => setFormData({...formData, status: e.target.value})}
-                className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
-              />
-              <span className="text-slate-700 font-medium">Pendente</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input 
-                type="radio" 
-                name="status" 
-                value="Pago" 
-                checked={formData.status === 'Pago'}
-                onChange={(e) => setFormData({...formData, status: e.target.value})}
-                className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
-              />
-              <span className="text-slate-700 font-medium">Pago</span>
-            </label>
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div>
+            <h2 className="text-xl font-bold text-[#1E3A8A] mb-6 flex items-center gap-2 border-b border-slate-100 pb-3">
+              Status de Pagamento
+            </h2>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="paymentStatus" 
+                  value="Pendente" 
+                  checked={formData.paymentStatus === 'Pendente'}
+                  onChange={(e) => setFormData({...formData, paymentStatus: e.target.value})}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
+                />
+                <span className="text-slate-700 font-medium">Pendente</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="paymentStatus" 
+                  value="Pago via Pix" 
+                  checked={formData.paymentStatus === 'Pago via Pix'}
+                  onChange={(e) => setFormData({...formData, paymentStatus: e.target.value})}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
+                />
+                <span className="text-slate-700 font-medium">Pago via Pix</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="paymentStatus" 
+                  value="Pago via Dinheiro" 
+                  checked={formData.paymentStatus === 'Pago via Dinheiro'}
+                  onChange={(e) => setFormData({...formData, paymentStatus: e.target.value})}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
+                />
+                <span className="text-slate-700 font-medium">Pago via Dinheiro</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="paymentStatus" 
+                  value="Pago via Cartão" 
+                  checked={formData.paymentStatus === 'Pago via Cartão'}
+                  onChange={(e) => setFormData({...formData, paymentStatus: e.target.value})}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
+                />
+                <span className="text-slate-700 font-medium">Pago via Cartão</span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-xl font-bold text-[#1E3A8A] mb-6 flex items-center gap-2 border-b border-slate-100 pb-3">
+              Status de Produção
+            </h2>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="productionStatus" 
+                  value="Aguardando" 
+                  checked={formData.productionStatus === 'Aguardando'}
+                  onChange={(e) => setFormData({...formData, productionStatus: e.target.value})}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
+                />
+                <span className="text-slate-700 font-medium">Aguardando</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="productionStatus" 
+                  value="Em Produção" 
+                  checked={formData.productionStatus === 'Em Produção'}
+                  onChange={(e) => setFormData({...formData, productionStatus: e.target.value})}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
+                />
+                <span className="text-slate-700 font-medium">Em Produção</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="radio" 
+                  name="productionStatus" 
+                  value="Entregue" 
+                  checked={formData.productionStatus === 'Entregue'}
+                  onChange={(e) => setFormData({...formData, productionStatus: e.target.value})}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
+                />
+                <span className="text-slate-700 font-medium">Entregue</span>
+              </label>
+            </div>
           </div>
         </section>
 
