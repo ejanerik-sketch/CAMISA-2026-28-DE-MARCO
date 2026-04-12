@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Search, Filter, Download, CheckCircle, Clock, AlertCircle, Users, PlusCircle, LogOut, Trash2, X, Edit2, Minus, Plus, FileText } from 'lucide-react';
+import { Search, Filter, Download, CheckCircle, Clock, AlertCircle, Users, PlusCircle, LogOut, Trash2, X, Edit2, Minus, Plus, FileText, MessageSquare } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -368,6 +368,61 @@ export default function AdminDashboard() {
     doc.text(`Total do Pedido: R$ ${order.total.toFixed(2).replace('.', ',')}`, 14, yPos);
 
     doc.save(`pedido_${order.id}.pdf`);
+  };
+
+  const handleSendWhatsApp = (order: any) => {
+    if (!currentUser) return;
+
+    const paymentStatus = getPaymentStatus(order.status);
+    const productionStatus = getProductionStatus(order.status);
+    
+    // Mapear etapa para lote
+    let loteInfo = productionStatus;
+    if (productionStatus.includes('1ª ETAPA')) loteInfo = 'Primeiro Lote';
+    else if (productionStatus.includes('2ª ETAPA')) loteInfo = 'Segundo Lote';
+    else if (productionStatus.includes('3ª ETAPA')) loteInfo = 'Terceiro Lote';
+    else if (productionStatus.includes('4ª ETAPA')) loteInfo = 'Quarto Lote';
+    else if (productionStatus.includes('5ª ETAPA')) loteInfo = 'Quinto Lote';
+
+    let itemsList = '';
+    if (order.cart) {
+      Object.entries(order.cart).forEach(([category, sizes]: [string, any]) => {
+        Object.entries(sizes as Record<string, number>).forEach(([size, qty]) => {
+          if (qty > 0) {
+            // Encontrar o nome amigável da categoria
+            const catInfo = CATEGORIES.find(c => c.id === category);
+            const catName = catInfo ? catInfo.name.split(' (')[0] : category;
+            itemsList += `- ${qty}x ${catName} (${size})\n`;
+          }
+        });
+      });
+    }
+
+    let message = `Olá, *${order.name}*! Ótimas notícias!\n\n`;
+    message += `Aqui é a *${currentUser.name}*, da Paróquia de Fátima. Passando para avisar que as camisas do *${loteInfo}* acabaram de chegar!\n\n`;
+    message += `*O pedido foi:*\n${itemsList}\n`;
+    
+    if (paymentStatus === 'Pendente') {
+      message += `*Pagamento:* Pendente\n`;
+      message += `*Valor devido:* R$ ${order.total.toFixed(2).replace('.', ',')}\n\n`;
+      message += `Você pode pagar via:\n`;
+      message += `*PIX CPF:*\n`;
+      message += `90231449534\n`;
+      message += `*Nome:* Joseane dos Santos Araújo de Oliveira\n`;
+      message += `_Ao fazer o pagamento via PIX, favor enviar o comprovante neste mesmo WhatsApp._\n\n`;
+      message += `*Dinheiro ou Cartão:* No ato da retirada\n\n`;
+    } else {
+      message += `*Status do Pagamento:* ${paymentStatus}\n\n`;
+    }
+
+    message += `Você já pode vir retirar ou combinar comigo a entrega.\n\n`;
+    message += `Estamos muito felizes com o seu pedido!`;
+
+    const phone = order.whatsapp.replace(/\D/g, '');
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/55${phone}?text=${encodedMessage}`;
+    
+    window.open(whatsappUrl, '_blank');
   };
 
   const handleUpdateStatus = async () => {
@@ -846,6 +901,13 @@ export default function AdminDashboard() {
                           title="Baixar Pedido em PDF"
                         >
                           <Download className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleSendWhatsApp(order)}
+                          className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors active:scale-95"
+                          title="Enviar Mensagem WhatsApp"
+                        >
+                          <MessageSquare className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
