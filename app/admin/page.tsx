@@ -44,16 +44,17 @@ const CATEGORIES = [
       { name: '10 ANOS', price: 35 },
       { name: '12 ANOS', price: 35 },
       { name: '14 ANOS', price: 35 },
-      { name: '16 ANOS', price: 35 },
     ] 
   },
   { 
-    id: 'especial', 
-    name: 'Especial (R$ 45,00)', 
+    id: 'especiais', 
+    name: 'Tamanhos Especiais (G1 a G3: R$ 50,00 | G4 e G5: R$ 60,00)', 
     sizes: [
-      { name: 'G1', price: 45 },
-      { name: 'G2', price: 45 },
-      { name: 'G3', price: 45 },
+      { name: 'G1', price: 50 },
+      { name: 'G2', price: 50 },
+      { name: 'G3', price: 50 },
+      { name: 'G4', price: 60 },
+      { name: 'G5', price: 60 },
     ] 
   }
 ];
@@ -172,8 +173,9 @@ export default function AdminDashboard() {
     filteredOrders.forEach(order => {
       if (order.cart) {
         Object.entries(order.cart).forEach(([category, sizes]: [string, any]) => {
+          const normalizedCategory = category === 'especial' ? 'especiais' : category;
           Object.entries(sizes as Record<string, number>).forEach(([size, qty]) => {
-            const key = `${category} - ${size}`;
+            const key = `${normalizedCategory} - ${size}`;
             summary[key] = (summary[key] || 0) + qty;
           });
         });
@@ -193,9 +195,10 @@ export default function AdminDashboard() {
     const csvContent = [
       headers.join(','),
       ...filteredOrders.map(order => {
-        const itemsList = Object.entries(order.cart || {}).map(([cat, sizes]: [string, any]) => 
-          Object.entries(sizes).map(([size, qty]) => `${qty}x ${cat}-${size}`).join('; ')
-        ).join(' | ');
+        const itemsList = Object.entries(order.cart || {}).map(([cat, sizes]: [string, any]) => {
+          const normalizedCat = cat === 'especial' ? 'especiais' : cat;
+          return Object.entries(sizes).map(([size, qty]) => `${qty}x ${normalizedCat}-${size}`).join('; ');
+        }).join(' | ');
         return [
           order.id,
           `"${order.name}"`,
@@ -255,9 +258,10 @@ export default function AdminDashboard() {
       const stage = getProductionStatus(order.status);
       if (order.cart) {
         Object.entries(order.cart).forEach(([category, sizes]: [string, any]) => {
+          const normalizedCategory = category === 'especial' ? 'especiais' : category;
           Object.entries(sizes as Record<string, number>).forEach(([size, qty]) => {
             if (qty > 0) {
-              const key = `${stage} | ${category} - ${size}`;
+              const key = `${stage} | ${normalizedCategory} - ${size}`;
               summary[key] = (summary[key] || 0) + qty;
             }
           });
@@ -342,9 +346,10 @@ export default function AdminDashboard() {
     const tableData: string[][] = [];
     if (order.cart) {
       Object.entries(order.cart).forEach(([category, sizes]: [string, any]) => {
+        const normalizedCategory = category === 'especial' ? 'especiais' : category;
         Object.entries(sizes as Record<string, number>).forEach(([size, qty]) => {
           if (qty > 0) {
-            tableData.push([category, size, qty.toString()]);
+            tableData.push([normalizedCategory, size, qty.toString()]);
           }
         });
       });
@@ -387,11 +392,12 @@ export default function AdminDashboard() {
     let itemsList = '';
     if (order.cart) {
       Object.entries(order.cart).forEach(([category, sizes]: [string, any]) => {
+        const normalizedCategory = category === 'especial' ? 'especiais' : category;
         Object.entries(sizes as Record<string, number>).forEach(([size, qty]) => {
           if (qty > 0) {
             // Encontrar o nome amigável da categoria
-            const catInfo = CATEGORIES.find(c => c.id === category);
-            const catName = catInfo ? catInfo.name.split(' (')[0] : category;
+            const catInfo = CATEGORIES.find(c => c.id === normalizedCategory);
+            const catName = catInfo ? catInfo.name.split(' (')[0] : normalizedCategory;
             itemsList += `- ${qty}x ${catName} (${size})\n`;
           }
         });
@@ -1038,7 +1044,12 @@ export default function AdminDashboard() {
                     <button 
                       onClick={() => {
                         setIsEditingItems(true);
-                        setEditedCart(JSON.parse(JSON.stringify(selectedOrder.cart || {})));
+                        const currentCart = JSON.parse(JSON.stringify(selectedOrder.cart || {}));
+                        if (currentCart['especial']) {
+                          currentCart['especiais'] = { ...(currentCart['especiais'] || {}), ...currentCart['especial'] };
+                          delete currentCart['especial'];
+                        }
+                        setEditedCart(currentCart);
                       }}
                       className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors"
                     >
@@ -1091,16 +1102,17 @@ export default function AdminDashboard() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {selectedOrder.cart && Object.entries(selectedOrder.cart).map(([category, sizes]: [string, any]) => (
-                      Object.entries(sizes).map(([size, qty]: [string, any]) => (
+                    {selectedOrder.cart && Object.entries(selectedOrder.cart).map(([category, sizes]: [string, any]) => {
+                      const normalizedCategory = category === 'especial' ? 'especiais' : category;
+                      return Object.entries(sizes).map(([size, qty]: [string, any]) => (
                         qty > 0 && (
-                          <div key={`${category}-${size}`} className="flex justify-between items-center">
-                            <span className="font-bold text-slate-700 capitalize">{category} - {size}</span>
+                          <div key={`${normalizedCategory}-${size}`} className="flex justify-between items-center">
+                            <span className="font-bold text-slate-700 capitalize">{normalizedCategory} - {size}</span>
                             <span className="text-slate-900 font-bold">{qty}x</span>
                           </div>
                         )
-                      ))
-                    ))}
+                      ));
+                    })}
                   </div>
                 )}
               </div>
